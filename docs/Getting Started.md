@@ -39,6 +39,9 @@ libboost-all-dev \
 pkg-config \
 libssl-dev
 ```
+### OpenSuse installation 
+# add ethereum client => https://snapcraft.io/install/go-eth/opensuse
+# add cmake => https://snapcraft.io/cmake
 
 ### Build
 ```

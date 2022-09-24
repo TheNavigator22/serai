@@ -9,7 +9,9 @@ use crate::{
   FrostCore, FrostKeys,
   algorithm::{Schnorr, Hram},
   sign::{PreprocessPackage, SignMachine, SignatureMachine, AlgorithmMachine},
-  tests::{clone_without, curve::test_curve, schnorr::test_schnorr, recover},
+  tests::{
+    clone_without, curve::test_curve, schnorr::test_schnorr, promote::test_promotion, recover,
+  },
 };
 
 pub struct Vectors {
@@ -32,7 +34,7 @@ fn vectors_to_multisig_keys<C: Curve>(vectors: &Vectors) -> HashMap<u16, FrostKe
     .iter()
     .map(|secret| C::read_F(&mut Cursor::new(hex::decode(secret).unwrap())).unwrap())
     .collect::<Vec<_>>();
-  let verification_shares = shares.iter().map(|secret| C::GENERATOR * secret).collect::<Vec<_>>();
+  let verification_shares = shares.iter().map(|secret| C::generator() * secret).collect::<Vec<_>>();
 
   let mut keys = HashMap::new();
   for i in 1 ..= u16::try_from(shares.len()).unwrap() {
@@ -43,7 +45,6 @@ fn vectors_to_multisig_keys<C: Curve>(vectors: &Vectors) -> HashMap<u16, FrostKe
     serialized.extend(u16::try_from(shares.len()).unwrap().to_be_bytes());
     serialized.extend(i.to_be_bytes());
     serialized.extend(shares[usize::from(i) - 1].to_repr().as_ref());
-    serialized.extend(&hex::decode(vectors.group_key).unwrap());
     for share in &verification_shares {
       serialized.extend(share.to_bytes().as_ref());
     }
@@ -67,12 +68,14 @@ pub fn test_with_vectors<R: RngCore + CryptoRng, C: Curve, H: Hram<C>>(
   // Do basic tests before trying the vectors
   test_curve::<_, C>(&mut *rng);
   test_schnorr::<_, C>(rng);
+  test_promotion::<_, C>(rng);
 
   // Test against the vectors
   let keys = vectors_to_multisig_keys::<C>(&vectors);
   let group_key = C::read_G(&mut Cursor::new(hex::decode(vectors.group_key).unwrap())).unwrap();
   assert_eq!(
-    C::GENERATOR * C::read_F(&mut Cursor::new(hex::decode(vectors.group_secret).unwrap())).unwrap(),
+    C::generator() *
+      C::read_F(&mut Cursor::new(hex::decode(vectors.group_secret).unwrap())).unwrap(),
     group_key
   );
   assert_eq!(
@@ -103,7 +106,7 @@ pub fn test_with_vectors<R: RngCore + CryptoRng, C: Curve, H: Hram<C>>(
         C::read_F(&mut Cursor::new(hex::decode(vectors.nonces[c][1]).unwrap())).unwrap(),
       ];
       c += 1;
-      let these_commitments = vec![[C::GENERATOR * nonces[0], C::GENERATOR * nonces[1]]];
+      let these_commitments = vec![[C::generator() * nonces[0], C::generator() * nonces[1]]];
       let machine = machine.unsafe_override_preprocess(PreprocessPackage {
         nonces: vec![nonces],
         commitments: vec![these_commitments.clone()],

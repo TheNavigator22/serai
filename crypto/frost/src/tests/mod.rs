@@ -14,6 +14,7 @@ use crate::{
 // Test suites for public usage
 pub mod curve;
 pub mod schnorr;
+pub mod promote;
 pub mod vectors;
 
 // Literal test definitions to run during `cargo test`
@@ -99,7 +100,7 @@ pub fn recover<C: Curve>(keys: &HashMap<u16, FrostKeys<C>>) -> C::F {
   let group_private = keys.iter().fold(C::F::zero(), |accum, (i, keys)| {
     accum + (keys.secret_share() * lagrange::<C::F>(*i, &included))
   });
-  assert_eq!(C::GENERATOR * group_private, first.group_key(), "failed to recover keys");
+  assert_eq!(C::generator() * group_private, first.group_key(), "failed to recover keys");
   group_private
 }
 

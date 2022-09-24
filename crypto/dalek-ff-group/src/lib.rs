@@ -37,9 +37,7 @@ pub mod field;
 
 // Convert a boolean to a Choice in a *presumably* constant time manner
 fn choice(value: bool) -> Choice {
-  let bit = value as u8;
-  debug_assert_eq!(bit | 1, 1);
-  Choice::from(bit)
+  Choice::from(u8::from(value))
 }
 
 macro_rules! deref_borrow {
@@ -122,7 +120,7 @@ macro_rules! math_op {
 }
 
 #[doc(hidden)]
-#[macro_export]
+#[macro_export(local_inner_macros)]
 macro_rules! math {
   ($Value: ident, $Factor: ident, $add: expr, $sub: expr, $mul: expr) => {
     math_op!($Value, $Value, Add, add, AddAssign, add_assign, $add);
@@ -131,6 +129,8 @@ macro_rules! math {
   };
 }
 
+#[doc(hidden)]
+#[macro_export(local_inner_macros)]
 macro_rules! math_neg {
   ($Value: ident, $Factor: ident, $add: expr, $sub: expr, $mul: expr) => {
     math!($Value, $Factor, $add, $sub, $mul);
@@ -157,7 +157,7 @@ macro_rules! from_wrapper {
 }
 
 #[doc(hidden)]
-#[macro_export]
+#[macro_export(local_inner_macros)]
 macro_rules! from_uint {
   ($wrapper: ident, $inner: ident) => {
     from_wrapper!($wrapper, $inner, u8);
@@ -242,7 +242,7 @@ impl PrimeField for Scalar {
 
   const S: u32 = 2;
   fn is_odd(&self) -> Choice {
-    unimplemented!()
+    choice(self.to_le_bits()[0])
   }
   fn multiplicative_generator() -> Self {
     2u64.into()
@@ -309,10 +309,15 @@ macro_rules! dalek_group {
 
     impl Group for $Point {
       type Scalar = Scalar;
-      // Ideally, this would be cryptographically secure, yet that's not a bound on the trait
-      // k256 also does this
-      fn random(rng: impl RngCore) -> Self {
-        &$BASEPOINT_TABLE * Scalar::random(rng)
+      fn random(mut rng: impl RngCore) -> Self {
+        loop {
+          let mut bytes = field::FieldElement::random(&mut rng).to_repr();
+          bytes[31] |= u8::try_from(rng.next_u32() % 2).unwrap() << 7;
+          let opt = Self::from_bytes(&bytes);
+          if opt.is_some().into() {
+            return opt.unwrap();
+          }
+        }
       }
       fn identity() -> Self {
         Self($DPoint::identity())
